@@ -1,6 +1,7 @@
 import json
 import asyncio
 import logging
+import os
 from typing import List, Dict, Any
 import chromadb
 from chromadb.config import Settings
@@ -20,13 +21,40 @@ class ChromaIndexBuilder:
         
     def initialize_client(self):
         """Initialize Chroma client with persistence."""
-        self.client = chromadb.PersistentClient(
-            path=self.persist_directory,
-            settings=Settings(
-                anonymized_telemetry=False,
-                allow_reset=True
+        # Close any existing client first to avoid conflicts
+        if self.client:
+            try:
+                self.client._server.close()
+            except:
+                pass
+            self.client = None
+            
+        # Create a new client instance
+        try:
+            self.client = chromadb.PersistentClient(
+                path=self.persist_directory,
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    allow_reset=True
+                )
             )
-        )
+        except Exception as e:
+            logger.warning(f"Error creating Chroma client: {e}")
+            # Try again with a clean instance
+            import shutil
+            try:
+                if os.path.exists(self.persist_directory):
+                    shutil.rmtree(self.persist_directory, ignore_errors=True)
+                self.client = chromadb.PersistentClient(
+                    path=self.persist_directory,
+                    settings=Settings(
+                        anonymized_telemetry=False,
+                        allow_reset=True
+                    )
+                )
+            except Exception as e2:
+                logger.error(f"Failed to create Chroma client after cleanup: {e2}")
+                raise
         
         # Get or create collection
         try:
@@ -38,6 +66,14 @@ class ChromaIndexBuilder:
                 metadata={"hnsw:space": "cosine"}  # Use cosine similarity
             )
             logger.info(f"Created new collection: {self.collection_name}")
+    
+    def __del__(self):
+        """Clean up resources when the object is destroyed."""
+        if self.client:
+            try:
+                self.client._server.close()
+            except:
+                pass
     
     def load_transactions(self, file_path: str = None) -> List[Dict[str, Any]]:
         """Load transactions from JSON file."""
@@ -84,7 +120,8 @@ class ChromaIndexBuilder:
         
         # Clear existing data and add new data
         try:
-            self.collection.delete()
+            # Delete all documents in the collection by using where clause that matches everything
+            self.collection.delete(where={"userId": {"$exists": True}})
             logger.info("Cleared existing collection data")
         except Exception as e:
             logger.warning(f"Could not clear collection: {e}")

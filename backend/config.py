@@ -15,7 +15,7 @@ class Config:
     
     # Gemini API Configuration
     GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     # Database Configuration
     CHROMA_DB_PATH: str = os.getenv("CHROMA_DB_PATH", "./chroma_db")
@@ -40,7 +40,7 @@ class Config:
     LOG_FORMAT: str = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     
     # Data Generation Configuration
-    TRANSACTIONS_PER_USER_MIN: int = int(os.getenv("TRANSACTIONS_PER_USER_MIN", "100"))
+    TRANSACTIONS_PER_USER_MIN: int = int(os.getenv("TRANSACTIONS_PER_USER_MIN", "150"))
     TRANSACTIONS_PER_USER_MAX: int = int(os.getenv("TRANSACTIONS_PER_USER_MAX", "200"))
     NUM_USERS: int = int(os.getenv("NUM_USERS", "3"))
     USE_GEMINI_FOR_DATA_GENERATION: bool = os.getenv("USE_GEMINI_FOR_DATA_GENERATION", "false").lower() == "true"

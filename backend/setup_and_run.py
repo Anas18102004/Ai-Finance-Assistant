@@ -98,10 +98,16 @@ async def main():
     if success:
         print("\n" + "=" * 50)
         print("🚀 Starting API server...")
-        run_api_server()
+        # Return from the async function before starting the server
+        return True
     else:
         print("\n❌ Setup failed. Please check the logs and try again.")
-        sys.exit(1)
+        return False
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Run the async setup
+    if asyncio.run(main()):
+        # Start the API server outside of the async context
+        run_api_server()
+    else:
+        sys.exit(1)

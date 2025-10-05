@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class QueryIntent(BaseModel):
     """Parsed query intent and parameters."""
-    intent: str  # ["top_expenses", "sum_spent", "filter", "compare", "general"]
+    intent: str  # ["greeting", "conversational", "personal_info", "top_expenses", "sum_spent", "filter", "compare", "general"]
     filters: Dict[str, Any] = {}
     top_k: int = 5
     time_range: Optional[Dict[str, str]] = None
@@ -18,6 +18,37 @@ class QueryParser:
     
     def __init__(self):
         self.intent_patterns = {
+            "greeting": [
+                r"^(hi|hello|hey|good\s+morning|good\s+afternoon|good\s+evening)$",
+                r"^(hi|hello|hey)\s*[!.]*$",
+                r"^how\s+are\s+you\??$",
+                r"^what'?s\s+up\??$",
+                r"^good\s+(morning|afternoon|evening|day)\s*[!.]*$"
+            ],
+            "conversational": [
+                r"^(thanks?|thank\s+you|ok|okay|cool|nice|great|awesome)$",
+                r"^(yes|no|maybe|sure|alright)\s*[!.]*$",
+                r"^(bye|goodbye|see\s+you|talk\s+later)$",
+                r"^who\s+are\s+you\??$",
+                r"^what\s+can\s+you\s+do\??$",
+                r"^help\s*[!.]*$",
+                r"^who\s+am\s+i\??$",
+                r"^tell\s+me\s+about\s+(myself|me)\??$",
+                r"^what\s+do\s+you\s+know\s+about\s+me\??$",
+                r"^can\s+you\s+see\s+my\s+(profile|details|info)\??$",
+                r"^show\s+me\s+my\s+(profile|info|details)\??$"
+            ],
+            "personal_info": [
+                r"what'?s\s+my\s+name",
+                r"what\s+is\s+my\s+name", 
+                r"whats\s+my\s+name",
+                r"^my\s+name$",  # Just "my name"
+                r"my\s+name\s+is",
+                r"do\s+you\s+know\s+my\s+name",
+                r"what'?s\s+my\s+(age|birthday|email|phone|address)",
+                r"do\s+you\s+have\s+my\s+(name|age|info|details)",
+                r"tell\s+me\s+my\s+name"
+            ],
             "top_expenses": [
                 r"top\s+\d*\s*expenses?", r"highest\s+spending", r"most\s+expensive",
                 r"biggest\s+transactions?", r"largest\s+amounts?"
@@ -46,9 +77,10 @@ class QueryParser:
         }
         
         self.categories = [
-            "food", "dining", "transportation", "shopping", "entertainment",
-            "bills", "utilities", "healthcare", "education", "travel",
-            "groceries", "fuel", "investment", "salary", "freelance", "gift"
+            "food", "dining", "restaurant", "groceries", "transportation", 
+            "shopping", "entertainment", "bills", "utilities", "gas", 
+            "electricity", "water", "healthcare", "education", "travel",
+            "fuel", "investment", "salary", "freelance", "gift", "rent"
         ]
     
     def parse_query(self, query: str, user_id: str) -> QueryIntent:
@@ -90,10 +122,32 @@ class QueryParser:
     
     def _classify_intent(self, query: str) -> str:
         """Classify the query intent."""
+        query_lower = query.lower().strip()
+        
+        # Direct checks for common personal queries (highest priority)
+        if query_lower in ["my name", "whats my name", "what's my name", "what is my name"]:
+            return "personal_info"
+        
+        # First check for greetings, conversational, and personal info queries (highest priority)
+        for intent in ["greeting", "conversational", "personal_info"]:
+            if intent in self.intent_patterns:
+                for pattern in self.intent_patterns[intent]:
+                    if re.search(pattern, query, re.IGNORECASE):
+                        return intent
+        
+        # Check for "How much did I spend" pattern for sum_spent intent
+        if re.search(r"how\s+much.*spend", query, re.IGNORECASE):
+            return "sum_spent"
+            
+        if re.search(r"find\s+transactions", query, re.IGNORECASE):
+            return "filter"
+            
+        # Check other financial intents
         for intent, patterns in self.intent_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, query):
-                    return intent
+            if intent not in ["greeting", "conversational", "personal_info", "filter"]:  # Skip already checked intents
+                for pattern in patterns:
+                    if re.search(pattern, query, re.IGNORECASE):
+                        return intent
         
         return "general"
     
@@ -155,24 +209,31 @@ class QueryParser:
             if category in query:
                 found_categories.append(category)
         
-        # Map common terms to categories
+        # Map common terms to categories (based on actual data format)
         category_mappings = {
-            "food": ["Food & Dining"],
-            "dining": ["Food & Dining"],
+            "food": ["Food", "Food & Dining"],
+            "dining": ["Food", "Food & Dining"], 
+            "restaurant": ["Food", "Food & Dining"],
+            "groceries": ["Food", "Groceries"],
             "transport": ["Transportation"],
+            "transportation": ["Transportation"],
             "shopping": ["Shopping"],
             "entertainment": ["Entertainment"],
-            "bills": ["Bills & Utilities"],
-            "utilities": ["Bills & Utilities"],
+            "bills": ["Utilities", "Bills & Utilities"],
+            "utilities": ["Utilities", "Bills & Utilities"],
+            "gas": ["Utilities"],
+            "electricity": ["Utilities"],
+            "water": ["Utilities"],
             "healthcare": ["Healthcare"],
             "education": ["Education"],
             "travel": ["Travel"],
-            "groceries": ["Groceries"],
-            "fuel": ["Fuel"],
+            "fuel": ["Fuel", "Transportation"],
             "investment": ["Investment"],
             "salary": ["Salary"],
             "freelance": ["Freelance"],
-            "gift": ["Gift"]
+            "gift": ["Gift"],
+            "rent": ["Rent"],
+            "others": ["Others"]
         }
         
         mapped_categories = []

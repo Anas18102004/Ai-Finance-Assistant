@@ -21,17 +21,43 @@ class TransactionRetriever:
     def initialize_client(self):
         """Initialize Chroma client."""
         if self.client is None:
-            self.client = chromadb.PersistentClient(
-                path=self.persist_directory,
-                settings=Settings(anonymized_telemetry=False)
-            )
-            
             try:
+                # Try to create a new client instance
+                self.client = chromadb.PersistentClient(
+                    path=self.persist_directory,
+                    settings=Settings(
+                        anonymized_telemetry=False,
+                        allow_reset=True
+                    )
+                )
+                
+                # Try to get the collection
                 self.collection = self.client.get_collection(name=self.collection_name)
                 logger.info(f"Connected to collection: {self.collection_name}")
             except Exception as e:
-                logger.error(f"Failed to connect to collection: {e}")
-                raise
+                logger.warning(f"Error initializing Chroma client: {e}")
+                # Try again with a clean instance
+                import os
+                import shutil
+                try:
+                    if os.path.exists(self.persist_directory):
+                        shutil.rmtree(self.persist_directory, ignore_errors=True)
+                    self.client = chromadb.PersistentClient(
+                        path=self.persist_directory,
+                        settings=Settings(
+                            anonymized_telemetry=False,
+                            allow_reset=True
+                        )
+                    )
+                    # Collection might not exist after cleanup, try to create it
+                    try:
+                        self.collection = self.client.get_collection(name=self.collection_name)
+                    except:
+                        logger.warning(f"Collection {self.collection_name} not found after cleanup, it may need to be rebuilt")
+                        raise ValueError(f"Collection {self.collection_name} not found. Please rebuild the index first.")
+                except Exception as e2:
+                    logger.error(f"Failed to create Chroma client after cleanup: {e2}")
+                    raise
     
     async def retrieve(self, query_intent: QueryIntent, query_text: str) -> List[Dict[str, Any]]:
         """Retrieve transactions based on query intent and filters."""
@@ -76,40 +102,40 @@ class TransactionRetriever:
     
     def _build_where_clause(self, query_intent: QueryIntent) -> Dict[str, Any]:
         """Build Chroma where clause from query intent."""
-        where_clause = {}
+        conditions = []
         
         # User filter (always present)
         if "userId" in query_intent.filters:
-            where_clause["userId"] = query_intent.filters["userId"]
+            conditions.append({"userId": {"$eq": query_intent.filters["userId"]}})
         
         # Date range filter
         if query_intent.time_range:
             if "start_date" in query_intent.time_range:
-                where_clause["date"] = {"$gte": query_intent.time_range["start_date"]}
+                conditions.append({"date": {"$gte": query_intent.time_range["start_date"]}})
             if "end_date" in query_intent.time_range:
-                if "date" in where_clause:
-                    where_clause["date"]["$lte"] = query_intent.time_range["end_date"]
-                else:
-                    where_clause["date"] = {"$lte": query_intent.time_range["end_date"]}
+                conditions.append({"date": {"$lte": query_intent.time_range["end_date"]}})
         
         # Category filter
         if query_intent.categories:
             if len(query_intent.categories) == 1:
-                where_clause["category"] = query_intent.categories[0]
+                conditions.append({"category": {"$eq": query_intent.categories[0]}})
             else:
-                where_clause["category"] = {"$in": query_intent.categories}
+                conditions.append({"category": {"$in": query_intent.categories}})
         
         # Amount range filter
         if query_intent.amount_range:
             if "min_amount" in query_intent.amount_range:
-                where_clause["amount"] = {"$gte": query_intent.amount_range["min_amount"]}
+                conditions.append({"amount": {"$gte": query_intent.amount_range["min_amount"]}})
             if "max_amount" in query_intent.amount_range:
-                if "amount" in where_clause:
-                    where_clause["amount"]["$lte"] = query_intent.amount_range["max_amount"]
-                else:
-                    where_clause["amount"] = {"$lte": query_intent.amount_range["max_amount"]}
+                conditions.append({"amount": {"$lte": query_intent.amount_range["max_amount"]}})
         
-        return where_clause
+        # Build final where clause
+        if len(conditions) == 0:
+            return {}
+        elif len(conditions) == 1:
+            return conditions[0]
+        else:
+            return {"$and": conditions}
     
     def _format_results(self, results: Dict[str, Any], query_intent: QueryIntent) -> List[Dict[str, Any]]:
         """Format Chroma results into transaction objects."""

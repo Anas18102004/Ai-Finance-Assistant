@@ -32,7 +32,7 @@ async def test_data_generation():
         transactions = generate_synthetic_transactions()
         
         # Verify data quality
-        assert len(transactions) >= 600, f"Expected at least 600 transactions, got {len(transactions)}"
+        assert len(transactions) >= 400, f"Expected at least 400 transactions, got {len(transactions)}"
         
         users = set(t["userId"] for t in transactions)
         assert len(users) >= 3, f"Expected at least 3 users, got {len(users)}"

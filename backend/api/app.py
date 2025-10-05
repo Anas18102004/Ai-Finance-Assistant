@@ -295,6 +295,19 @@ async def get_example_queries():
         "note": "Make sure to generate data and build index first"
     }
 
+@app.get("/memory/stats")
+async def get_memory_stats():
+    """Get conversation memory statistics."""
+    try:
+        stats = graph.get_memory_stats()
+        return {
+            "status": "success",
+            "memory_stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Memory stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     # Run the server with config settings
     uvicorn.run(
