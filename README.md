@@ -7,6 +7,20 @@ A sophisticated multi-agent AI system for financial analysis and insights, built
 ![React](https://img.shields.io/badge/React-18+-blue?style=for-the-badge&logo=react)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Latest-red?style=for-the-badge&logo=fastapi)
 
+## 🎥 **Demo Video**
+
+Watch our AI Financial Assistant in action! See the multi-agent system, beautiful UI, and intelligent responses:
+
+[![AI Financial Assistant Demo](https://img.shields.io/badge/▶️%20Watch%20Demo-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/v1EqgdQjCKM)
+
+> **🎬 Video Highlights:**
+> - Multi-agent workflow demonstration
+> - Real-time query processing and routing
+> - Beautiful response formatting
+> - User switching and data isolation
+> - AI Dashboard features and analytics
+> - Semantic search with RAG capabilities
+
 ## 🎯 **Features**
 
 - **🧠 Multi-Agent Architecture**: Intent classification, data processing, RAG-based knowledge retrieval
