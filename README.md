@@ -11,7 +11,9 @@ A sophisticated multi-agent AI system for financial analysis and insights, built
 
 Watch our AI Financial Assistant in action! See the multi-agent system, beautiful UI, and intelligent responses:
 
-[![AI Financial Assistant Demo](https://img.shields.io/badge/▶️%20Watch%20Demo-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/v1EqgdQjCKM)
+[![AI Financial Assistant Demo](https://img.youtube.com/vi/v1EqgdQjCKM/maxresdefault.jpg)](https://youtu.be/v1EqgdQjCKM)
+
+*Click the video thumbnail above to watch the full demo*
 
 > **🎬 Video Highlights:**
 > - Multi-agent workflow demonstration
