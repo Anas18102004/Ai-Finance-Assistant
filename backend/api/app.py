@@ -9,7 +9,7 @@ import uvicorn
 
 # Import our modules
 from config import config, print_startup_info, get_gemini_api_key
-from nodes.graph_orchestrator import graph
+from agents.orchestrator import orchestrator
 from index_build.build_index import index_builder
 from generate_data import generate_synthetic_transactions, save_transactions_to_file
 
@@ -85,6 +85,14 @@ async def startup_event():
         from nodes.retriever import retriever
         retriever.initialize_client()
         
+        # Initialize orchestrator with Gemini API key
+        gemini_api_key = get_gemini_api_key()
+        if gemini_api_key:
+            orchestrator.initialize(gemini_api_key)
+            logger.info("Orchestrator initialized with Gemini API key")
+        else:
+            logger.warning("No Gemini API key found - some features may be limited")
+        
         app_state["initialized"] = True
         logger.info("API startup completed successfully")
         
@@ -111,8 +119,18 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     try:
-        health = await graph.health_check()
-        return health
+        return {
+            "status": "healthy" if app_state["initialized"] else "initializing",
+            "service": "AI Financial Assistant",
+            "architecture": "Multi-Agent (Intent → Data/RAG → Synthesizer)",
+            "agents": {
+                "intent_agent": "active",
+                "data_agent": "active", 
+                "rag_agent": "active",
+                "synthesizer_agent": "active"
+            },
+            "memory_stats": orchestrator.get_memory_stats()
+        }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {
@@ -121,41 +139,48 @@ async def health_check():
         }
 
 @app.post("/query", response_model=QueryResponse)
-async def query_transactions(
-    request: QueryRequest,
-    gemini_api_key: Optional[str] = Header(None, alias="X-Gemini-API-Key")
-):
-    """
-    Query transactions using natural language.
-    
-    Gemini API key can be provided via:
-    1. X-Gemini-API-Key header
-    2. GEMINI_API_KEY environment variable
-    """
+async def query_transactions(request: QueryRequest):
+    """Query transactions using natural language with new agent architecture."""
     if not app_state["initialized"]:
         raise HTTPException(status_code=503, detail="Service not initialized")
     
     try:
-        logger.info(f"Processing query for user {request.user_id}: {request.query}")
+        logger.info(f"Processing query: {request.query} for user: {request.user_id}")
         
-        # Use header API key or fall back to environment
-        api_key = gemini_api_key or get_gemini_api_key()
-        
-        # Run the graph workflow
-        result = await graph.run(
+        # Process query using the orchestrator
+        result = await orchestrator.process_query(
             user_id=request.user_id,
-            query=request.query,
-            summarize=request.summarize,
-            top_k=request.top_k,
-            filters=request.filters,
-            gemini_api_key=api_key
+            query=request.query
         )
         
-        # Log performance
-        total_time = result.get("metadata", {}).get("total_time_ms", 0)
-        logger.info(f"Query completed in {total_time:.2f}ms")
+        # Convert orchestrator result to QueryResponse format
+        query_response = {
+            "status": result.get("status", "success"),
+            "query": result.get("query", request.query),
+            "user_id": result.get("user_id", request.user_id),
+            "intent": result.get("intent", "unknown"),
+            "retrieved": [],  # Not used in new architecture
+            "summary": result.get("response", ""),
+            "metadata": {
+                "total_retrieved": 0,
+                "query_intent": {"intent": result.get("intent", "unknown")},
+                "timings": {},
+                "total_time_ms": result.get("response_time_ms", 0),
+                "agent_path": result.get("agent_path", "unknown"),
+                "conversational": result.get("metadata", {}).get("conversational", False),
+                "rag_used": result.get("metadata", {}).get("rag_used", False),
+                "data_retrieved": result.get("metadata", {}).get("data_retrieved", False)
+            }
+        }
         
-        return QueryResponse(**result)
+        # Add data summary if available
+        if "data_summary" in result:
+            query_response["metadata"]["data_summary"] = result["data_summary"]
+        
+        if "knowledge_summary" in result:
+            query_response["metadata"]["knowledge_summary"] = result["knowledge_summary"]
+        
+        return QueryResponse(**query_response)
         
     except Exception as e:
         logger.error(f"Query processing error: {e}")
@@ -299,10 +324,11 @@ async def get_example_queries():
 async def get_memory_stats():
     """Get conversation memory statistics."""
     try:
-        stats = graph.get_memory_stats()
+        stats = orchestrator.get_memory_stats()
         return {
             "status": "success",
-            "memory_stats": stats
+            "memory_stats": stats,
+            "architecture": "Multi-Agent System"
         }
     except Exception as e:
         logger.error(f"Memory stats error: {e}")
